@@ -1,0 +1,28 @@
+# .NET build output
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+artifacts/
+project.lock.json
+*.user
+
+# IDEs
+.vs/
+.idea/
+.vscode/
+
+# Test results
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+coverage*.json
+
+# Local secrets / env (never commit API keys)
+appsettings.*.Local.json
+.env
+*.local
+
+# OS
+.DS_Store
+Thumbs.db
