@@ -3,8 +3,10 @@ namespace Agents.Desktop;
 /// <summary>
 /// Maps human-readable key names to Linux evdev key codes (from
 /// <c>linux/input-event-codes.h</c>) as consumed by <c>ydotool key</c>. Lookups are
-/// case-insensitive and cover a common subset: modifiers, a handful of named keys, the
-/// ASCII letters a–z, and the digits 0–9.
+/// case-insensitive and cover a common subset: modifiers, named keys (editing/navigation
+/// cluster), safe punctuation, the ASCII letters a–z, and the digits 0–9. The supported set is
+/// kept in sync with <see cref="KeyCombo"/>'s allowlist, which is the security gate in front of
+/// this translator.
 /// </summary>
 internal static class KeyMap
 {
@@ -26,8 +28,9 @@ internal static class KeyMap
 
         throw new NotSupportedException(
             $"Key '{keyName}' is not in the ydotool key map. Supported: modifiers " +
-            "(ctrl/control, alt, shift, super/meta/win/cmd), named keys " +
-            "(Return/Enter, Tab, Escape/Esc, space, BackSpace), letters a–z, and digits 0–9.");
+            "(ctrl/control, alt, shift, super/meta/win/cmd), named keys (Return/Enter, Tab, " +
+            "Escape/Esc, space, BackSpace, Delete/Del, Home/End, PageUp/PageDown, arrow keys), " +
+            "safe punctuation (- = [ ] ; ' ` \\ , . /), letters a–z, and digits 0–9.");
     }
 
     private static Dictionary<string, int> Build()
@@ -42,6 +45,31 @@ internal static class KeyMap
             ["Esc"] = 1,
             ["space"] = 57,
             ["BackSpace"] = 14,
+            ["Delete"] = 111,
+            ["Del"] = 111,
+
+            // Navigation / editing cluster.
+            ["Home"] = 102,
+            ["End"] = 107,
+            ["PageUp"] = 104,
+            ["PageDown"] = 109,
+            ["Up"] = 103,
+            ["Down"] = 108,
+            ["Left"] = 105,
+            ["Right"] = 106,
+
+            // Safe punctuation (unshifted evdev keys; the allowlist gates which reach here).
+            ["-"] = 12,
+            ["="] = 13,
+            ["["] = 26,
+            ["]"] = 27,
+            [";"] = 39,
+            ["'"] = 40,
+            ["`"] = 41,
+            ["\\"] = 43,
+            [","] = 51,
+            ["."] = 52,
+            ["/"] = 53,
 
             // Modifiers (aliases collapse onto the left-hand variant).
             ["ctrl"] = 29,

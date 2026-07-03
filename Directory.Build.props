@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- CA1859: we deliberately prefer read-only interface types (encapsulation) over the
+         concrete-type perf micro-optimization the rule suggests.
+         CA1707: underscore-separated test names (Method_Scenario_Expectation) are the idiomatic
+         xUnit convention; production public members use PascalCase so this only affects tests. -->
+    <NoWarn>$(NoWarn);CA1859;CA1707</NoWarn>
+  </PropertyGroup>
+</Project>

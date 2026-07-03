@@ -11,6 +11,10 @@ public interface IDesktopDriver
     Task MoveMouseAsync(int x, int y, CancellationToken ct = default);
     Task ClickAsync(MouseButton button = MouseButton.Left, CancellationToken ct = default);
     Task DoubleClickAsync(MouseButton button = MouseButton.Left, CancellationToken ct = default);
+
+    /// <summary>Press at (fromX,fromY), move to (toX,toY), release — drag / text-selection.</summary>
+    Task DragAsync(int fromX, int fromY, int toX, int toY, MouseButton button = MouseButton.Left, CancellationToken ct = default);
+
     Task TypeTextAsync(string text, CancellationToken ct = default);
 
     /// <summary>Press a key combo such as "Return", "ctrl+c", "alt+Tab".</summary>

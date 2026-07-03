@@ -54,6 +54,7 @@ public class AgentActionParserTests
     [InlineData("move", AgentActionType.Move)]
     [InlineData("click", AgentActionType.Click)]
     [InlineData("doubleClick", AgentActionType.DoubleClick)]
+    [InlineData("drag", AgentActionType.Drag)]
     [InlineData("type", AgentActionType.Type)]
     [InlineData("key", AgentActionType.Key)]
     [InlineData("scroll", AgentActionType.Scroll)]
@@ -189,5 +190,84 @@ public class AgentActionParserTests
         actions[0].ScrollDx.ShouldBe(5);
         actions[0].ScrollDy.ShouldBe(-10);
         actions[1].WaitMs.ShouldBe(250);
+    }
+
+    // ---- Tolerances weak local models rely on -----------------------------------------------
+
+    [Fact]
+    public void Tolerates_trailing_comma_after_last_object_property()
+    {
+        var actions = AgentActionParser.Parse("""[{"type":"click","x":1,"y":2,}]""");
+
+        var action = actions.ShouldHaveSingleItem();
+        action.Type.ShouldBe(AgentActionType.Click);
+        action.X.ShouldBe(1);
+        action.Y.ShouldBe(2);
+    }
+
+    [Fact]
+    public void Tolerates_trailing_comma_after_last_array_element()
+    {
+        var actions = AgentActionParser.Parse("""[{"type":"click","x":1,"y":2},]""");
+
+        actions.ShouldHaveSingleItem().Type.ShouldBe(AgentActionType.Click);
+    }
+
+    [Fact]
+    public void Tolerates_line_comments_between_tokens()
+    {
+        const string json = """
+            [
+              // click the OK button
+              {"type":"click","x":1,"y":2}
+            ]
+            """;
+
+        var action = AgentActionParser.Parse(json).ShouldHaveSingleItem();
+        action.Type.ShouldBe(AgentActionType.Click);
+        action.X.ShouldBe(1);
+        action.Y.ShouldBe(2);
+    }
+
+    [Fact]
+    public void Reads_numbers_supplied_as_strings()
+    {
+        var action = AgentActionParser
+            .Parse("""[{"type":"click","x":"312","y":"200"}]""")
+            .ShouldHaveSingleItem();
+
+        action.Type.ShouldBe(AgentActionType.Click);
+        action.X.ShouldBe(312);
+        action.Y.ShouldBe(200);
+    }
+
+    // ---- Drag -------------------------------------------------------------------------------
+
+    [Fact]
+    public void Parses_drag_with_coordinate_destination()
+    {
+        var action = AgentActionParser
+            .Parse("""[{"type":"drag","x":10,"y":10,"toX":20,"toY":20}]""")
+            .ShouldHaveSingleItem();
+
+        action.Type.ShouldBe(AgentActionType.Drag);
+        action.X.ShouldBe(10);
+        action.Y.ShouldBe(10);
+        action.ToX.ShouldBe(20);
+        action.ToY.ShouldBe(20);
+    }
+
+    [Fact]
+    public void Parses_drag_with_element_indices_for_start_and_destination()
+    {
+        var action = AgentActionParser
+            .Parse("""[{"type":"drag","element":1,"toElement":2}]""")
+            .ShouldHaveSingleItem();
+
+        action.Type.ShouldBe(AgentActionType.Drag);
+        action.Element.ShouldBe(1);
+        action.ToElement.ShouldBe(2);
+        action.X.ShouldBeNull();
+        action.ToX.ShouldBeNull();
     }
 }

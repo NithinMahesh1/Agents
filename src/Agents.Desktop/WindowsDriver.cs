@@ -41,6 +41,16 @@ public sealed class WindowsDriver : IDesktopDriver
         throw new PlatformNotSupportedException(NotImplementedMessage);
 
     /// <inheritdoc />
+    public Task DragAsync(
+        int fromX,
+        int fromY,
+        int toX,
+        int toY,
+        MouseButton button = MouseButton.Left,
+        CancellationToken ct = default) =>
+        throw new PlatformNotSupportedException(NotImplementedMessage);
+
+    /// <inheritdoc />
     public Task TypeTextAsync(string text, CancellationToken ct = default) =>
         throw new PlatformNotSupportedException(NotImplementedMessage);
 

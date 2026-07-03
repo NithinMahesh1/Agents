@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -93,13 +94,13 @@ public sealed class OllamaProvider : IModelProvider, IDisposable
             // Malformed envelope — treated as "no usable content" below rather than thrown.
         }
 
+        // No usable content, or output that parses to nothing, returns an EMPTY list: AgentLoop then
+        // feeds a corrective Notice back to the model and retries (up to MaxConsecutiveEmpty). A real
+        // "task cannot be done" Fail must be decided by the model, never synthesized here.
         if (string.IsNullOrWhiteSpace(content))
-            return [Fail($"Ollama ({_model}) returned no usable message content.")];
+            return [];
 
-        var actions = AgentActionParser.Parse(content);
-        return actions.Count > 0
-            ? actions
-            : [Fail("Model output could not be parsed into any action.")];
+        return AgentActionParser.Parse(content);
     }
 
     /// <summary>Dispose the owned <see cref="HttpClient"/> (no-op when one was injected).</summary>
@@ -131,7 +132,7 @@ public sealed class OllamaProvider : IModelProvider, IDisposable
         {
             sb.Append("\n\nNumbered elements (prefer these by index):");
             foreach (var e in context.Elements)
-                sb.Append($"\n[{e.Index}] {e.Role} \"{e.Name}\" @ ({e.X},{e.Y},{e.Width},{e.Height})");
+                sb.Append(CultureInfo.InvariantCulture, $"\n[{e.Index}] {e.Role} \"{e.Name}\" @ ({e.X},{e.Y},{e.Width},{e.Height})");
         }
 
         if (context.History.Count > 0)
@@ -139,16 +140,18 @@ public sealed class OllamaProvider : IModelProvider, IDisposable
             sb.Append("\n\nRecent steps:");
             foreach (var step in context.History.TakeLast(5))
             {
-                var result = string.IsNullOrWhiteSpace(step.Result) ? string.Empty : $" -> {step.Result}";
-                sb.Append($"\n- {step.Action.Type}{result}");
+                var status = step.Ok ? "ok" : "FAILED";
+                var detail = string.IsNullOrWhiteSpace(step.Detail) ? string.Empty : $": {step.Detail}";
+                sb.Append(CultureInfo.InvariantCulture, $"\n- {step.Action.Type} -> {status}{detail}");
             }
         }
 
+        // Corrective feedback from the loop (e.g. the last output was unparseable) — placed last so it is salient.
+        if (!string.IsNullOrWhiteSpace(context.Notice))
+            sb.Append("\n\nIMPORTANT: ").Append(context.Notice);
+
         return sb.ToString();
     }
-
-    private static AgentAction Fail(string message) =>
-        new() { Type = AgentActionType.Fail, Message = message };
 
     // --- Ollama /api/chat wire contract (BCL System.Text.Json only) ---
 

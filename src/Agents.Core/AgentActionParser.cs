@@ -4,32 +4,38 @@ using System.Text.Json.Serialization;
 namespace Agents.Core;
 
 /// <summary>
-/// Parses a model's JSON action output into <see cref="AgentAction"/>s, and supplies the
-/// schema text providers embed in the prompt. Tolerant of fenced ```json blocks and of a
-/// response that is either a single object or an array.
+/// Parses a model's JSON action output into <see cref="AgentAction"/>s, and supplies the schema text
+/// providers embed in the prompt. Tolerant of fenced ```json blocks, single-object-or-array responses,
+/// trailing commas, // comments, and numbers-as-strings (weak local models do all of these). An empty
+/// result means "nothing usable" — the loop feeds that back to the model so it can self-correct.
 /// </summary>
 public static class AgentActionParser
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
+        AllowTrailingCommas = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        NumberHandling = JsonNumberHandling.AllowReadingFromString,
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
     };
 
     /// <summary>Description of the action JSON the model must emit (embed this in the prompt).</summary>
     public const string SchemaPrompt = """
-        Respond with ONLY a JSON array of one or more actions. Each action is an object:
-          {"type":"move|click|doubleClick|type|key|scroll|wait|done|fail",
-           "x":int,"y":int,            // pixel coordinates for move/click
-           "element":int,              // OR a numbered element index from the list (preferred)
+        Respond with ONLY a JSON array containing EXACTLY ONE action — the single best next step.
+        The screen changes after each action, so never plan several ahead. Each action is an object:
+          {"type":"move|click|doubleClick|drag|type|key|scroll|wait|done|fail",
+           "x":int,"y":int,            // screenshot-pixel coords for move/click/double-click and drag START
+           "toX":int,"toY":int,        // drag DESTINATION
+           "element":int,              // OR a numbered element index (preferred); "toElement" for a drag end
            "button":"left|right|middle",
            "text":"...",               // for type
            "key":"Return|ctrl+c|...",  // for key
-           "scrollDx":int,"scrollDy":int,
+           "scrollDx":int,"scrollDy":int,   // positive y = down, positive x = right
            "waitMs":int,
            "message":"why / final answer"}   // required on done/fail
-        Prefer "element" when a numbered element matches; otherwise use x/y. Emit "done" when the
-        goal is achieved, "fail" if it cannot be. No prose, no markdown — the JSON array only.
+        Prefer "element" when a numbered element matches; otherwise use x/y. Emit "done" when the goal
+        is achieved, "fail" if it cannot be. No prose, no markdown — the JSON array only.
         """;
 
     /// <summary>Parse model output into actions. Returns an empty list if nothing valid is found.</summary>

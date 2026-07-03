@@ -71,31 +71,47 @@ public sealed partial class LinuxWaylandDriver : IDesktopDriver
     }
 
     /// <inheritdoc />
+    public async Task DragAsync(
+        int fromX,
+        int fromY,
+        int toX,
+        int toY,
+        MouseButton button = MouseButton.Left,
+        CancellationToken ct = default)
+    {
+        // A drag is four ordered, separate ydotool invocations so the button stays held across the
+        // move: position at the source, press-and-hold (down-only code), move to the destination
+        // (dragging), then release (up-only code). Coordinates are absolute screenshot pixels, per
+        // the Core coordinate contract, so both moves reuse MoveMouseAsync (mousemove --absolute).
+        await MoveMouseAsync(fromX, fromY, ct).ConfigureAwait(false);
+        await RunYdotoolAsync(["click", MouseCode(MouseButtonDown, button)], ct).ConfigureAwait(false);
+        await MoveMouseAsync(toX, toY, ct).ConfigureAwait(false);
+        await RunYdotoolAsync(["click", MouseCode(MouseButtonUp, button)], ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task TypeTextAsync(string text, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(text);
 
-        // ydotool type -- <text>; "--" ends option parsing so text beginning with '-' is literal,
-        // and <text> is a single argv element so spaces are preserved without shell quoting.
+        // Flag-injection defense: `--` terminates ydotool's option parsing and <text> is passed as a
+        // single argv element (ProcessStartInfo.ArgumentList, never a shell string). So model-typed
+        // text that looks like a flag — e.g. "--file ~/.ssh/id_ed25519" — is typed verbatim instead
+        // of being interpreted by ydotool (which would otherwise read a file into the keystroke stream).
         await RunYdotoolAsync(["type", "--", text], ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
     public async Task KeyPressAsync(string keyCombo, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(keyCombo))
-        {
-            throw new ArgumentException("Key combo must not be empty.", nameof(keyCombo));
-        }
+        // Strict choke point: KeyCombo rejects anything outside the allowlist grammar — VT-switch
+        // (ctrl+alt+F1..F12), ctrl+alt+Del, the ctrl+alt+BackSpace X "zap", SysRq, unknown
+        // modifiers/keys — by throwing BEFORE we translate or emit, so a rejected combo never
+        // reaches ydotool. Anything returned here is guaranteed to resolve in KeyMap.
+        var parts = KeyCombo.Validate(keyCombo);
 
-        var parts = keyCombo.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (parts.Length == 0)
-        {
-            throw new ArgumentException($"Key combo '{keyCombo}' contained no keys.", nameof(keyCombo));
-        }
-
-        var codes = new int[parts.Length];
-        for (var i = 0; i < parts.Length; i++)
+        var codes = new int[parts.Count];
+        for (var i = 0; i < parts.Count; i++)
         {
             codes[i] = KeyMap.GetCode(parts[i]);
         }
@@ -118,15 +134,18 @@ public sealed partial class LinuxWaylandDriver : IDesktopDriver
     /// <inheritdoc />
     public async Task ScrollAsync(int dx, int dy, CancellationToken ct = default)
     {
-        // ydotool has no universal dedicated "wheel" subcommand; recent builds expose wheel motion
-        // through `mousemove --wheel`, where -x is the horizontal wheel delta and -y the vertical
-        // wheel delta (evdev REL_WHEEL/REL_HWHEEL semantics: positive = up/left).
+        // Sign convention: Core specifies screen-scroll direction — positive dy = DOWN, positive
+        // dx = RIGHT. ydotool drives the wheel through evdev REL_WHEEL/REL_HWHEEL, whose vertical
+        // sign is inverted (REL_WHEEL positive = UP), so we negate dy; REL_HWHEEL positive = right,
+        // which already matches dx.
         //
-        // TODO: `mousemove --wheel` is only present on newer ydotool builds. On builds without it,
-        //       emit REL_WHEEL/REL_HWHEEL directly via uinput (the ydotoold protocol) or fall back
-        //       to a compositor-specific tool; also confirm the sign convention on the target build.
+        // TODO: `mousemove --wheel` exists only on newer ydotool builds; older builds have no wheel
+        //       subcommand at all. On those, emit REL_WHEEL/REL_HWHEEL directly via uinput (the
+        //       ydotoold protocol) or fall back to a compositor-specific tool. Also confirm the sign
+        //       on the target build: some builds already flip REL_WHEEL to screen-scroll direction,
+        //       in which case the dy negation below must be removed.
         await RunYdotoolAsync(
-            ["mousemove", "--wheel", "-x", Fmt(dx), "-y", Fmt(dy)],
+            ["mousemove", "--wheel", "-x", Fmt(dx), "-y", Fmt(-dy)],
             ct).ConfigureAwait(false);
     }
 
@@ -157,13 +176,26 @@ public sealed partial class LinuxWaylandDriver : IDesktopDriver
         }
     }
 
-    private static string ClickCode(MouseButton button) => button switch
+    // ydotool `click` takes one byte: the low bits select the button (left 0, right 1, middle 2)
+    // and the high bits are the edges — 0x40 = press, 0x80 = release, 0xC0 = both. ClickAsync sends
+    // the combined edge (0xC0/0xC1/0xC2); a drag needs the press and release as separate
+    // invocations so the button stays held while the pointer moves between them.
+    private const int MouseButtonDown = 0x40;
+    private const int MouseButtonUp = 0x80;
+
+    private static int ButtonIndex(MouseButton button) => button switch
     {
-        MouseButton.Left => "0xC0",
-        MouseButton.Right => "0xC1",
-        MouseButton.Middle => "0xC2",
+        MouseButton.Left => 0,
+        MouseButton.Right => 1,
+        MouseButton.Middle => 2,
         _ => throw new ArgumentOutOfRangeException(nameof(button), button, "Unknown mouse button."),
     };
+
+    private static string MouseCode(int edges, MouseButton button) =>
+        "0x" + (edges | ButtonIndex(button)).ToString("X2", CultureInfo.InvariantCulture);
+
+    // Down|Up — preserves the original 0xC0/0xC1/0xC2 click codes.
+    private static string ClickCode(MouseButton button) => MouseCode(MouseButtonDown | MouseButtonUp, button);
 
     private static string Fmt(int value) => value.ToString(CultureInfo.InvariantCulture);
 
