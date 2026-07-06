@@ -23,6 +23,9 @@ appsettings.*.Local.json
 .env
 *.local
 
+# Screenshots / captures (may contain sensitive on-screen content — never commit)
+*.png
+
 # OS
 .DS_Store
 Thumbs.db

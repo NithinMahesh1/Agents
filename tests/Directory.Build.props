@@ -1,0 +1,11 @@
+<Project>
+  <!-- Inherit the repo-root props (net10.0, nullable, analyzers, warnings-as-errors). -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!-- Test code legitimately uses patterns production analyzers flag (underscore test names,
+         inline expected-value arrays, etc.). Keep analyzers on as guidance, but don't fail the
+         build on them in test projects. Production code (src/) stays warnings-as-errors. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>
