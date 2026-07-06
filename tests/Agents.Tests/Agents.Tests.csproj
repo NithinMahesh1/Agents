@@ -24,6 +24,7 @@
     <ProjectReference Include="..\..\src\Agents.Desktop\Agents.Desktop.csproj" />
     <ProjectReference Include="..\..\src\Agents.Providers\Agents.Providers.csproj" />
     <ProjectReference Include="..\..\src\Agents.Grounding\Agents.Grounding.csproj" />
+    <ProjectReference Include="..\..\src\Agents.Cli\Agents.Cli.csproj" />
   </ItemGroup>
 
 </Project>
